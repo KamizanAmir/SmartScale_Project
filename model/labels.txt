@@ -1,5 +1,5 @@
-0 Red Apple
-1 Banana
+0 Epal Merah Fuji
+1 Pisang Tanduk
 2 Background
 3 Human
 4 Hand
