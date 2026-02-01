@@ -1,0 +1,7 @@
+0 Red Apple
+1 Banana
+2 Background
+3 Human
+4 Hand
+5 Punch
+6 Palm
