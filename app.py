@@ -3,6 +3,8 @@ import tensorflow as tf
 from PIL import Image, ImageOps
 import numpy as np
 import pandas as pd
+import datetime
+import os
 
 # --- 1. SETUP & CONFIGURATION ---
 st.set_page_config(page_title="AI Smart Scale", layout="wide")
@@ -24,18 +26,19 @@ def load_model():
         
     return interpreter, input_details, output_details, class_names
 
-# --- 3. LOAD THE DATABASE (The CSV) ---
-def get_product_info(predicted_label):
+# --- 3. DATABASE FUNCTIONS ---
+def get_plu_data():
+    """Loads the entire CSV database"""
     try:
-        df = pd.read_csv('plu_database.csv')
-        # Clean label (e.g. "0 Red Apple" -> "Red Apple")
-        if " " in predicted_label:
-            clean_label = predicted_label.split(' ', 1)[1]
-        else:
-            clean_label = predicted_label
-            
-        product = df[df['Item'] == clean_label]
-        
+        return pd.read_csv('plu_database.csv')
+    except Exception:
+        return pd.DataFrame() # Return empty if file missing
+
+def get_product_info(item_name, df):
+    """Finds a specific item in the loaded dataframe"""
+    try:
+        # Filter for the item
+        product = df[df['Item'] == item_name]
         if not product.empty:
             return product.iloc[0] 
         else:
@@ -43,11 +46,36 @@ def get_product_info(predicted_label):
     except Exception:
         return None
 
-# --- 4. THE APP LAYOUT ---
+# --- 4. LOGGING FUNCTION (New Feature) ---
+def log_transaction(item, plu, weight, price):
+    log_file = 'transaction_log.csv'
+    
+    # Create the data row
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    new_data = pd.DataFrame([{
+        "Timestamp": timestamp,
+        "Item": item,
+        "PLU": plu,
+        "Weight_kg": weight,
+        "Total_Price": price
+    }])
+
+    # Append to file (or create if it doesn't exist)
+    if not os.path.isfile(log_file):
+        new_data.to_csv(log_file, index=False)
+    else:
+        new_data.to_csv(log_file, mode='a', header=False, index=False)
+
+# --- 5. THE APP UI ---
 st.title("🍎 AI Smart Scale PoC")
 st.markdown("Place item on the scale to identify.")
 
 col1, col2 = st.columns([1, 1])
+
+# Initialize variables
+detected_item = None
+confidence_score = 0.0
+plu_db = get_plu_data() # Load database once
 
 with col1:
     st.header("1. Camera Input")
@@ -57,10 +85,9 @@ with col2:
     st.header("2. Identification Results")
 
     if camera_image is not None:
-        # Load System
+        # --- A. AI PREDICTION ---
         interpreter, input_details, output_details, class_names = load_model()
         
-        # --- A. PREPARE IMAGE ---
         image = Image.open(camera_image).convert("RGB")
         size = (224, 224)
         image = ImageOps.fit(image, size, Image.Resampling.LANCZOS)
@@ -69,48 +96,79 @@ with col2:
         data = np.ndarray(shape=(1, 224, 224, 3), dtype=np.float32)
         data[0] = normalized_image_array
 
-        # --- B. PREDICT ---
         interpreter.set_tensor(input_details[0]['index'], data)
         interpreter.invoke()
         prediction = interpreter.get_tensor(output_details[0]['index'])
         
         index = np.argmax(prediction)
-        class_name = class_names[index]
+        raw_class_name = class_names[index]
         confidence_score = prediction[0][index]
 
-        # --- C. DISPLAY RESULTS (STRICT MODE) ---
-        
-        # 1. Define strict threshold (75%)
-        THRESHOLD = 0.75
-
-        st.write(f"**Raw AI Guess:** {class_name} ({confidence_score*100:.1f}%)")
-
-        if confidence_score < THRESHOLD:
-            # STOP HERE if confidence is low
-            st.error(f"❓ Low Confidence ({confidence_score*100:.1f}%). Please adjust lighting or move item closer.")
-        
+        # Clean class name (remove "0 ", "1 " numbers)
+        if " " in raw_class_name:
+            detected_item = raw_class_name.split(' ', 1)[1]
         else:
-            # ONLY RUN THIS if confidence is HIGH
-            item_data = get_product_info(class_name)
+            detected_item = raw_class_name
 
-            if item_data is not None and item_data['Item'] != "Background":
-                st.success(f"✅ Identified: {item_data['Item']}")
-                st.metric(label="PLU Code", value=item_data['PLU'])
-                price_per_kg = item_data['Price_Per_Kg']
-                st.metric(label="Price / Kg", value=f"RM{price_per_kg:.2f}")
+        st.write(f"**AI Suggestion:** {detected_item} ({confidence_score*100:.1f}%)")
 
-                st.markdown("---")
-                st.subheader("3. Weighing")
-                weight = st.number_input("Enter Weight (kg):", min_value=0.0, step=0.1)
+    # --- B. MANUAL OVERRIDE LOGIC (New Feature) ---
+    # We allow override IF: Camera is active OR we just want to manual entry
+    
+    final_item_name = None
+    
+    # 1. Check if we need override
+    is_override = st.checkbox("⚠️ Manual Override (Wrong item / Low Confidence)")
+
+    if is_override:
+        # Show a dropdown with ALL items from CSV
+        if not plu_db.empty:
+            # exclude 'Background' from list
+            item_list = plu_db[plu_db['Item'] != 'Background']['Item'].tolist()
+            manual_selection = st.selectbox("Select Correct Item:", item_list)
+            final_item_name = manual_selection
+            st.info(f"Manual Mode: Selected {final_item_name}")
+        else:
+            st.error("Database empty.")
+            
+    else:
+        # Use AI Result (Only if confidence is good)
+        if detected_item and confidence_score >= 0.75 and "Background" not in detected_item:
+            final_item_name = detected_item
+        elif detected_item and confidence_score < 0.75:
+             st.error(f"❓ Low Confidence ({confidence_score*100:.1f}%). Please use Manual Override.")
+        elif detected_item and "Background" in detected_item:
+             st.info("Waiting for item...")
+
+    # --- C. FINAL PROCESSING (Only if we have a valid item name) ---
+    if final_item_name:
+        item_data = get_product_info(final_item_name, plu_db)
+
+        if item_data is not None:
+            st.success(f"✅ Active Item: {item_data['Item']}")
+            
+            # Display Details
+            c1, c2 = st.columns(2)
+            c1.metric("PLU Code", item_data['PLU'])
+            c2.metric("Price / Kg", f"RM{item_data['Price_Per_Kg']:.2f}")
+
+            st.markdown("---")
+            st.subheader("3. Weighing & Transaction")
+            
+            # Input Weight
+            weight = st.number_input("Enter Weight (kg):", min_value=0.0, step=0.1)
+            
+            if weight > 0:
+                total_price = weight * item_data['Price_Per_Kg']
+                st.markdown(f"### 💰 Total: RM{total_price:.2f}")
                 
-                if weight > 0:
-                    total_price = weight * price_per_kg
-                    st.markdown(f"### 💰 Total Price: RM{total_price:.2f}")
-                    if st.button("Add to Cart"):
-                        st.toast(f"Added {item_data['Item']} to cart!")
-            
-            elif "Background" in class_name:
-                st.info("Waiting for item...")
-            
-            else:
-                st.error(f"Item '{class_name}' recognized, but not found in Database (CSV).")
+                # --- D. LOGGING (New Feature) ---
+                if st.button("Confirm & Add to Cart"):
+                    # 1. Save to CSV
+                    log_transaction(item_data['Item'], item_data['PLU'], weight, total_price)
+                    
+                    # 2. Show Success
+                    st.toast(f"Saved: {item_data['Item']} - RM{total_price:.2f}")
+                    st.balloons() # Fun effect for success
+        else:
+            st.error("Item found in AI/Selection but NOT in Database CSV.")
