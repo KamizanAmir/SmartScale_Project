@@ -46,7 +46,7 @@ def get_product_info(item_name, df):
     except Exception:
         return None
 
-# --- 4. LOGGING FUNCTION (New Feature) ---
+# --- 4. LOGGING FUNCTION ---
 def log_transaction(item, plu, weight, price):
     log_file = 'transaction_log.csv'
     
@@ -112,18 +112,13 @@ with col2:
 
         st.write(f"**AI Suggestion:** {detected_item} ({confidence_score*100:.1f}%)")
 
-    # --- B. MANUAL OVERRIDE LOGIC (New Feature) ---
-    # We allow override IF: Camera is active OR we just want to manual entry
-    
+    # --- B. MANUAL OVERRIDE LOGIC ---
     final_item_name = None
     
-    # 1. Check if we need override
     is_override = st.checkbox("⚠️ Manual Override (Wrong item / Low Confidence)")
 
     if is_override:
-        # Show a dropdown with ALL items from CSV
         if not plu_db.empty:
-            # exclude 'Background' from list
             item_list = plu_db[plu_db['Item'] != 'Background']['Item'].tolist()
             manual_selection = st.selectbox("Select Correct Item:", item_list)
             final_item_name = manual_selection
@@ -140,7 +135,7 @@ with col2:
         elif detected_item and "Background" in detected_item:
              st.info("Waiting for item...")
 
-    # --- C. FINAL PROCESSING (Only if we have a valid item name) ---
+    # --- C. FINAL PROCESSING ---
     if final_item_name:
         item_data = get_product_info(final_item_name, plu_db)
 
@@ -162,13 +157,43 @@ with col2:
                 total_price = weight * item_data['Price_Per_Kg']
                 st.markdown(f"### 💰 Total: RM{total_price:.2f}")
                 
-                # --- D. LOGGING (New Feature) ---
+                # --- LOGGING BUTTON ---
                 if st.button("Confirm & Add to Cart"):
-                    # 1. Save to CSV
                     log_transaction(item_data['Item'], item_data['PLU'], weight, total_price)
-                    
-                    # 2. Show Success
                     st.toast(f"Saved: {item_data['Item']} - RM{total_price:.2f}")
-                    st.balloons() # Fun effect for success
+                    st.balloons()
         else:
             st.error("Item found in AI/Selection but NOT in Database CSV.")
+
+# --- 6. ADMIN / HISTORY SECTION (NEW) ---
+st.markdown("---")
+st.header("📊 Admin Dashboard")
+
+with st.expander("📝 View Transaction History"):
+    if os.path.exists('transaction_log.csv'):
+        # 1. Read the file
+        df_log = pd.read_csv('transaction_log.csv')
+        
+        # 2. Sort by newest first
+        df_log = df_log.sort_index(ascending=False)
+        
+        # 3. Show Summary Metrics
+        total_sales = df_log['Total_Price'].sum()
+        total_items = len(df_log)
+        
+        m1, m2 = st.columns(2)
+        m1.metric("Total Items Sold", total_items)
+        m2.metric("Total Revenue", f"RM{total_sales:.2f}")
+        
+        # 4. Show the Table
+        st.dataframe(df_log, use_container_width=True)
+        
+        # 5. Download Button
+        st.download_button(
+            label="📥 Download Report (CSV)",
+            data=df_log.to_csv(index=False).encode('utf-8'),
+            file_name='daily_sales_report.csv',
+            mime='text/csv',
+        )
+    else:
+        st.info("No transactions recorded yet.")
