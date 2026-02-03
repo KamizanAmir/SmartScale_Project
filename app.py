@@ -263,7 +263,7 @@ with st.expander("📝 View & Manage Transactions", expanded=True):
         if not df_log.empty:
             # Create list of options
             options_labels = [
-                f"{i}: {row['Timestamp']} - {row['Item']} (RM {row['Total_Price']:.2f})" 
+                f"{i}: {row.Timestamp} - {row.Item} (RM {row.Total_Price:.2f})"
                 for i, row in enumerate(df_log.itertuples(index=False))
             ]
             
