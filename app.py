@@ -128,7 +128,7 @@ def clear_weight():
     st.session_state['weight_input'] = 0.0
 
 # --- 7. THE APP UI ---
-st.title("🍎 AI Smart Scale PoC")
+st.title("🍎 Ai Vision Scale")
 st.markdown("Place item on the scale to identify.")
 
 col1, col2 = st.columns([1, 1])
