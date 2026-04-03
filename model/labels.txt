@@ -1,7 +1,8 @@
-0 Epal Merah Fuji
-1 Pisang Tanduk
-2 Background
-3 Human
-4 Hand
+0 Carrot
+1 Cucumber
+2 Epal Merah Fuji
+3 Pisang Tanduk
+4 Palm
 5 Punch
-6 Palm
+6 Human
+7 Background
