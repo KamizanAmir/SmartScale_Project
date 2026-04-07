@@ -135,23 +135,27 @@ def trigger_print_dialog(label_img):
     <html>
     <head>
     <style>
-        /* Force the physical size of the print */
+        /* Rely on the printer's driver for size to prevent forced landscape rotation */
         @page {{
-            size: 40mm 30mm;
-            margin: 0mm;
+            margin: 0;
+            size: auto;
         }}
-        /* Remove default browser margins and set layout */
+        /* Remove default browser margins and make body fill the page */
         body {{
             margin: 0;
             padding: 0;
-            width: 40mm;
-            height: 30mm;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             overflow: hidden;
+            background: white;
         }}
-        /* Make image fill the exact 40x30mm size */
+        /* Scale image dynamically to fit whatever paper orientation is used */
         img {{
-            width: 100%;
-            height: 100%;
+            max-width: 100%;
+            max-height: 100%;
             object-fit: contain; 
             display: block;
         }}
