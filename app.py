@@ -112,16 +112,44 @@ def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
 
 def trigger_print_dialog(label_img):
     b64_img = image_to_base64(label_img)
-    unique_id = time.time()
     print_html = f"""
-    <div style="display: flex; justify-content: center; align-items: center; height: 100vh;">
-        <img src="data:image/png;base64,{b64_img}" style="max-width: 100%; max-height: 100vh;">
-    </div>
-    <script>
-        setTimeout(function() {{ window.print(); }}, 500);
-    </script>
+    <html>
+    <head>
+    <style>
+        /* Force the physical size of the print */
+        @page {{
+            size: 40mm 30mm;
+            margin: 0mm;
+        }}
+        /* Remove default browser margins and set layout */
+        body {{
+            margin: 0;
+            padding: 0;
+            width: 40mm;
+            height: 30mm;
+            overflow: hidden;
+        }}
+        /* Make image fill the exact 40x30mm size */
+        img {{
+            width: 100%;
+            height: 100%;
+            object-fit: contain; 
+            display: block;
+        }}
+    </style>
+    </head>
+    <body>
+        <img src="data:image/png;base64,{b64_img}">
+        <script>
+            setTimeout(function() {{ 
+                window.focus(); 
+                window.print(); 
+            }}, 500);
+        </script>
+    </body>
+    </html>
     """
-    components.html(print_html, height=400, scrolling=False)
+    components.html(print_html, height=150, scrolling=False)
 
 # --- 6. CALLBACK TO CLEAR WEIGHT ---
 def clear_weight():
