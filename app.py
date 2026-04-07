@@ -88,25 +88,44 @@ def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
     label = Image.new('RGB', (W, H), 'white')
     draw = ImageDraw.Draw(label)
     
+    # Use larger fonts to make text visible. Fallback to default if Arial is not found.
+    try:
+        font_title = ImageFont.truetype("arial.ttf", 36)
+        font_body  = ImageFont.truetype("arial.ttf", 24)
+        font_total = ImageFont.truetype("arial.ttf", 28)
+    except IOError:
+        try:
+             font_title = ImageFont.load_default(size=36)
+             font_body  = ImageFont.load_default(size=24)
+             font_total = ImageFont.load_default(size=28)
+        except:
+             font_title = ImageFont.load_default()
+             font_body  = ImageFont.load_default()
+             font_total = ImageFont.load_default()
+
     # Simple Graphics
-    draw.text((120, 10), "FRESH MARKET", fill='black')
-    draw.line((10, 30, 390, 30), fill='black', width=2)
-    draw.text((20, 50), f"ITEM: {item_name}", fill='black')
-    draw.text((20, 80), f"Weight: {weight:.3f} kg", fill='black')
-    draw.text((20, 100), f"Price/kg: RM {price_per_kg:.2f}", fill='black')
-    draw.text((20, 130), f"TOTAL: RM {total_price:.2f}", fill='black')
+    draw.text((80, 10), "FRESH MARKET", fill='black', font=font_title)
+    draw.line((10, 50, 390, 50), fill='black', width=3)
+    
+    y = 60
+    draw.text((20, y), f"ITEM: {item_name}", fill='black', font=font_body)
+    draw.text((20, y + 35), f"Weight: {weight:.3f} kg", fill='black', font=font_body)
+    draw.text((20, y + 70), f"Price/kg: RM {price_per_kg:.2f}", fill='black', font=font_body)
+    draw.text((20, y + 105), f"TOTAL: RM {total_price:.2f}", fill='black', font=font_total)
     
     # Barcode
     code128 = barcode.get_barcode_class('code128')
     try:
         my_code = code128(str(plu), writer=ImageWriter())
         buffer = BytesIO()
-        my_code.write(buffer)
+        my_code.write(buffer, options={"write_text": True, "text_distance": 4})
         buffer.seek(0)
-        barcode_img = Image.open(buffer).resize((300, 100))
-        label.paste(barcode_img, (50, 180))
+        
+        # Make the barcode significantly smaller
+        barcode_img = Image.open(buffer).resize((220, 70))
+        label.paste(barcode_img, (90, 210))
     except Exception:
-        draw.text((50, 200), f"[BARCODE ERROR: {plu}]", fill='red')
+        draw.text((50, 200), f"[BARCODE ERROR: {plu}]", fill='red', font=font_body)
     
     return label
 
