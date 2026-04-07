@@ -88,24 +88,24 @@ def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
     label = Image.new('RGB', (W, H), 'white')
     draw = ImageDraw.Draw(label)
     
-    # Use larger fonts to make text visible. Fallback to default if Arial is not found.
+    # 1. Reduce fonts slightly to ensure they fit in the printer's safe zone
     try:
-        font_title = ImageFont.truetype("arial.ttf", 36)
-        font_body  = ImageFont.truetype("arial.ttf", 24)
-        font_total = ImageFont.truetype("arial.ttf", 28)
+        font_title = ImageFont.truetype("arial.ttf", 32) # Reduced from 36
+        font_body  = ImageFont.truetype("arial.ttf", 22) # Reduced from 24
+        font_total = ImageFont.truetype("arial.ttf", 26) # Reduced from 28
     except IOError:
         try:
-             font_title = ImageFont.load_default(size=36)
-             font_body  = ImageFont.load_default(size=24)
-             font_total = ImageFont.load_default(size=28)
-        except:
              font_title = ImageFont.load_default()
              font_body  = ImageFont.load_default()
              font_total = ImageFont.load_default()
+        except:
+             pass
 
-    # Simple Graphics
-    draw.text((80, 10), "FRESH MARKET", fill='black', font=font_title)
-    draw.line((10, 50, 390, 50), fill='black', width=3)
+    # 2. Shift title left (was 80, now 50) so it doesn't clip on the right
+    draw.text((50, 10), "FRESH MARKET", fill='black', font=font_title)
+    
+    # Add minor margins to the horizontal line
+    draw.line((20, 50, 380, 50), fill='black', width=3)
     
     y = 60
     draw.text((20, y), f"ITEM: {item_name}", fill='black', font=font_body)
@@ -121,29 +121,27 @@ def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
         my_code.write(buffer, options={"write_text": True, "text_distance": 4})
         buffer.seek(0)
         
-        # Make the barcode significantly smaller
-        barcode_img = Image.open(buffer).resize((220, 70))
-        label.paste(barcode_img, (90, 210))
+        # 3. Shrink barcode width slightly and center it (X=100 centers a 200px image on a 400px canvas)
+        barcode_img = Image.open(buffer).resize((200, 65)) 
+        label.paste(barcode_img, (100, 215)) 
     except Exception:
         draw.text((50, 200), f"[BARCODE ERROR: {plu}]", fill='red', font=font_body)
     
     return label
-
 def trigger_print_dialog(label_img):
     b64_img = image_to_base64(label_img)
     print_html = f"""
     <html>
     <head>
     <style>
-        /* Rely on the printer's driver for size to prevent forced landscape rotation */
         @page {{
             margin: 0;
             size: auto;
         }}
-        /* Remove default browser margins and make body fill the page */
         body {{
             margin: 0;
-            padding: 0;
+            padding: 4%; /* Add a 4% buffer to prevent edge-bleeding */
+            box-sizing: border-box;
             width: 100vw;
             height: 100vh;
             display: flex;
@@ -152,7 +150,6 @@ def trigger_print_dialog(label_img):
             overflow: hidden;
             background: white;
         }}
-        /* Scale image dynamically to fit whatever paper orientation is used */
         img {{
             max-width: 100%;
             max-height: 100%;
@@ -173,7 +170,6 @@ def trigger_print_dialog(label_img):
     </html>
     """
     components.html(print_html, height=150, scrolling=False)
-
 # --- 6. CALLBACK TO CLEAR WEIGHT ---
 def clear_weight():
     st.session_state['weight_input'] = 0.0
