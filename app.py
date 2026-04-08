@@ -90,15 +90,17 @@ def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
     draw = ImageDraw.Draw(label)
     
     # --- Robust Font Loading ---
-    # Fixes the "tiny text" issue by falling back to OS system fonts if local arial.ttf is missing
+    # Expanded to catch more Linux/Mac/Windows environments
     font_path = None
     system_fonts = [
-        "arial.ttf",                                            # Local folder
-        "C:\\Windows\\Fonts\\arial.ttf",                        # Windows
-        "C:\\Windows\\Fonts\\Arial.ttf",                        # Windows alternate
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", # Linux
-        "/System/Library/Fonts/Supplemental/Arial.ttf",         # Mac
-        "/Library/Fonts/Arial.ttf"                              # Mac alternate
+        "arial.ttf",                                                    # Local folder (Recommended)
+        "C:\\Windows\\Fonts\\arial.ttf",                                # Windows
+        "C:\\Windows\\Fonts\\Arial.ttf",                                # Windows alternate
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",         # Linux common
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", # Linux alternate
+        "/System/Library/Fonts/Supplemental/Arial.ttf",                 # Mac
+        "/Library/Fonts/Arial.ttf",                                     # Mac alternate
+        "/System/Library/Fonts/Helvetica.ttc"                           # Mac fallback
     ]
     
     for path in system_fonts:
@@ -108,13 +110,15 @@ def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
             
     try:
         if font_path:
-            font_title = ImageFont.truetype(font_path, 36)
-            font_item  = ImageFont.truetype(font_path, 42)
-            font_label = ImageFont.truetype(font_path, 20)
-            font_value = ImageFont.truetype(font_path, 28)
-            font_total_label = ImageFont.truetype(font_path, 24)
-            font_total = ImageFont.truetype(font_path, 65)
+            # Greatly increased sizes for high-res canvas
+            font_title = ImageFont.truetype(font_path, 46)
+            font_item  = ImageFont.truetype(font_path, 54)
+            font_label = ImageFont.truetype(font_path, 28)
+            font_value = ImageFont.truetype(font_path, 36)
+            font_total_label = ImageFont.truetype(font_path, 36)
+            font_total = ImageFont.truetype(font_path, 75)
         else:
+            # If no font is found, PIL uses a tiny default font
             font_title = font_item = font_label = font_value = font_total_label = font_total = ImageFont.load_default()
     except Exception:
         font_title = font_item = font_label = font_value = font_total_label = font_total = ImageFont.load_default()
@@ -126,42 +130,41 @@ def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
             text_width = bbox[2] - bbox[0]
             return (W - text_width) // 2
         except Exception:
-            # Rough fallback if textbbox fails on very old PIL versions
             return (W - (len(text) * 15)) // 2 
 
     # --- TOP SECTION (Centered) ---
     store_text = "FRESH MARKET"
-    draw.text((get_text_x(store_text, font_title), 10), store_text, fill='black', font=font_title)
+    draw.text((get_text_x(store_text, font_title), 5), store_text, fill='black', font=font_title)
     
     item_text = f"{item_name.upper()}"
-    draw.text((get_text_x(item_text, font_item), 50), item_text, fill='black', font=font_item)
+    draw.text((get_text_x(item_text, font_item), 55), item_text, fill='black', font=font_item)
     
     # --- DIVIDER ---
-    draw.line((20, 105, 580, 105), fill='black', width=3)
+    draw.line((20, 115, 580, 115), fill='black', width=3)
     
     # --- MIDDLE SECTION (Date, Price/KG, Weight) ---
     current_date = datetime.datetime.now().strftime("%d/%m/%y")
     
     # Date (Left)
-    draw.text((30, 115), "DATE", fill='black', font=font_label)
-    draw.text((30, 140), current_date, fill='black', font=font_value)
+    draw.text((30, 125), "DATE", fill='black', font=font_label)
+    draw.text((30, 160), current_date, fill='black', font=font_value)
     
     # Price / KG (Center)
     price_text = f"RM {price_per_kg:.2f}"
-    draw.text((250, 115), "PRICE/KG", fill='black', font=font_label)
-    draw.text((250, 140), price_text, fill='black', font=font_value)
+    draw.text((250, 125), "PRICE/KG", fill='black', font=font_label)
+    draw.text((250, 160), price_text, fill='black', font=font_value)
     
     # Weight (Right)
     weight_text = f"{weight:.3f} kg"
-    draw.text((460, 115), "WEIGHT", fill='black', font=font_label)
-    draw.text((460, 140), weight_text, fill='black', font=font_value)
+    draw.text((450, 125), "WEIGHT", fill='black', font=font_label)
+    draw.text((450, 160), weight_text, fill='black', font=font_value)
 
     # --- TOTAL PRICE (Highlighted and Centered) ---
-    draw.line((20, 185, 580, 185), fill='black', width=3)
+    draw.line((20, 205, 580, 205), fill='black', width=3)
     total_lbl = "TOTAL:"
     total_val = f"RM {total_price:.2f}"
-    draw.text((90, 215), total_lbl, fill='black', font=font_total_label)
-    draw.text((190, 190), total_val, fill='black', font=font_total)
+    draw.text((80, 235), total_lbl, fill='black', font=font_total_label)
+    draw.text((200, 210), total_val, fill='black', font=font_total)
     
     # --- BOTTOM SECTION (Barcode mathematically centered) ---
     code128 = barcode.get_barcode_class('code128')
@@ -172,19 +175,18 @@ def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
         buffer.seek(0)
         
         # Stretch barcode to be clearly scannable
-        barcode_width = 400
-        barcode_height = 130
+        barcode_width = 440
+        barcode_height = 140
         barcode_img = Image.open(buffer).resize((barcode_width, barcode_height))
         
         # Calculate precise center X for the barcode
         barcode_x = (W - barcode_width) // 2
-        label.paste(barcode_img, (barcode_x, 290))
+        label.paste(barcode_img, (barcode_x, 300))
     except Exception:
         err_msg = f"[BARCODE ERROR: {plu}]"
         draw.text((get_text_x(err_msg, font_value), 320), err_msg, fill='red', font=font_value)
 
     return label
-
 def trigger_print_dialog(label_img):
     b64_img = image_to_base64(label_img)
     print_html = f"""
