@@ -84,64 +84,65 @@ def image_to_base64(image):
     return base64.b64encode(buffered.getvalue()).decode()
 
 def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
-    # 1. Canvas is now PORTRAIT (Width: 400, Height: 550) for crisp printing
-    W, H = 400, 550
+    # 1. Canvas is now LANDSCAPE (Width: 800, Height: 600) for 40x30mm scale
+    W, H = 800, 600
     label = Image.new('RGB', (W, H), 'white')
     draw = ImageDraw.Draw(label)
     
-    # 2. Setup Fonts (Larger sizes since canvas is taller)
+    # 2. Setup Fonts (Scaled up for 800x600 resolution)
     try:
-        font_store = ImageFont.truetype("arial.ttf", 28)
-        font_item  = ImageFont.truetype("arial.ttf", 34)
-        font_label = ImageFont.truetype("arial.ttf", 20) # For small text like "WEIGHT"
-        font_value = ImageFont.truetype("arial.ttf", 32) # For Date/Weight numbers
-        font_total = ImageFont.truetype("arial.ttf", 46) # Massive font for Total Price
+        font_store = ImageFont.truetype("arial.ttf", 40)
+        font_item  = ImageFont.truetype("arial.ttf", 48)
+        font_label = ImageFont.truetype("arial.ttf", 24)
+        font_value = ImageFont.truetype("arial.ttf", 36)
+        font_total = ImageFont.truetype("arial.ttf", 72)
     except IOError:
         # Fallbacks if arial isn't found
         font_store = font_item = font_label = font_value = font_total = ImageFont.load_default()
 
     # --- TOP SECTION ---
     # Store Name & Item Name
-    draw.text((100, 20), "FRESH MARKET", fill='black', font=font_store)
-    draw.text((20, 65), f"{item_name.upper()}", fill='black', font=font_item)
+    draw.text((20, 20), "FRESH MARKET", fill='black', font=font_store)
+    draw.text((20, 80), f"{item_name.upper()}", fill='black', font=font_item)
     
-    # --- BARCODE SECTION (Like FairPrice) ---
+    # --- DIVIDER ---
+    draw.line((20, 150, 780, 150), fill='black', width=4)
+    
+    # --- MIDDLE SECTION (Date, Price/KG, Weight) ---
+    current_date = datetime.datetime.now().strftime("%d/%m/%y")
+    
+    # Date
+    draw.text((20, 170), "DATE", fill='black', font=font_label)
+    draw.text((20, 200), current_date, fill='black', font=font_value)
+    
+    # Price / KG
+    draw.text((280, 170), "PRICE/KG", fill='black', font=font_label)
+    draw.text((280, 200), f"RM {price_per_kg:.2f}", fill='black', font=font_value)
+    
+    # Weight
+    draw.text((560, 170), "WEIGHT", fill='black', font=font_label)
+    draw.text((560, 200), f"{weight:.3f} kg", fill='black', font=font_value)
+
+    # --- BOTTOM SECTION (Barcode & Total Price) ---
+    # Barcode setup
     code128 = barcode.get_barcode_class('code128')
     try:
         my_code = code128(str(plu), writer=ImageWriter())
         buffer = BytesIO()
-        # write_text=False because we want the barcode clean, we have item name above
+        # write_text=True to display the PLU number under the barcode
         my_code.write(buffer, options={"write_text": True, "text_distance": 4})
         buffer.seek(0)
         
-        # Stretch barcode to be wide and easily scannable
-        barcode_img = Image.open(buffer).resize((320, 110))
-        label.paste(barcode_img, (40, 120))
+        # Stretch barcode to fit landscape layout (Bottom Left)
+        barcode_img = Image.open(buffer).resize((400, 220))
+        label.paste(barcode_img, (20, 320))
     except Exception:
-        draw.text((40, 150), f"[BARCODE ERROR: {plu}]", fill='red', font=font_value)
+        draw.text((20, 320), f"[BARCODE ERROR: {plu}]", fill='red', font=font_value)
 
-    # --- DIVIDER ---
-    draw.line((20, 250, 380, 250), fill='black', width=3)
-    
-    # --- MIDDLE SECTION (Date & Price/KG) ---
-    current_date = datetime.datetime.now().strftime("%d/%m/%y")
-    
-    # Left: Date
-    draw.text((20, 270), current_date, fill='black', font=font_value)
-    
-    # Right: Price / KG
-    draw.text((260, 260), "PRICE/KG", fill='black', font=font_label)
-    draw.text((260, 285), f"RM {price_per_kg:.2f}", fill='black', font=font_value)
-    
-    # --- BOTTOM SECTION (Weight & Total Price) ---
-    # Left: Weight
-    draw.text((20, 350), f"{weight:.3f} kg", fill='black', font=font_value)
-    draw.text((20, 390), "WEIGHT", fill='black', font=font_label)
-    
-    # Right: Total Price (Huge)
-    draw.text((180, 345), "RM", fill='black', font=font_value) # Currency symbol
-    draw.text((245, 335), f"{total_price:.2f}", fill='black', font=font_total) # Large number
-    draw.text((245, 395), "TOTAL PRICE", fill='black', font=font_label)
+    # Total Price (Bottom Right)
+    draw.text((520, 320), "TOTAL PRICE", fill='black', font=font_label)
+    draw.text((520, 360), "RM", fill='black', font=font_value)
+    draw.text((520, 410), f"{total_price:.2f}", fill='black', font=font_total)
     
     return label
 
@@ -153,20 +154,23 @@ def trigger_print_dialog(label_img):
     <style>
         @page {{
             margin: 0;
-            size: auto;
+            size: landscape;
         }}
         body {{
             margin: 0;
             padding: 0;
             background: white;
-            text-align: center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
         }}
         img {{
-            /* Force the image to take up the full width of the thermal paper */
             width: 100vw; 
-            height: auto; 
+            height: 100vh; 
+            object-fit: contain;
             display: block;
-            margin: auto;
         }}
     </style>
     </head>
