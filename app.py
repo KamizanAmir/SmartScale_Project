@@ -93,13 +93,13 @@ def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
     # Expanded to catch more Linux/Mac/Windows environments
     font_path = None
     system_fonts = [
-        "arial.ttf",                                                    # Local folder (Recommended)
-        "C:\\Windows\\Fonts\\arial.ttf",                                # Windows
-        "C:\\Windows\\Fonts\\Arial.ttf",                                # Windows alternate
+        "ARIAL.TTF",                                                    # Local folder (Recommended)
+        "C:\\Windows\\Fonts\\ARIAL.TTF",                                # Windows
+        "C:\\Windows\\Fonts\\ARIAL.TTF",                                # Windows alternate
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",         # Linux common
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", # Linux alternate
-        "/System/Library/Fonts/Supplemental/Arial.ttf",                 # Mac
-        "/Library/Fonts/Arial.ttf",                                     # Mac alternate
+        "/System/Library/Fonts/Supplemental/ARIAL.TTF",                 # Mac
+        "/Library/Fonts/ARIAL.TTF",                                     # Mac alternate
         "/System/Library/Fonts/Helvetica.ttc"                           # Mac fallback
     ]
     
