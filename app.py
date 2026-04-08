@@ -84,66 +84,105 @@ def image_to_base64(image):
     return base64.b64encode(buffered.getvalue()).decode()
 
 def generate_label_image(item_name, plu, weight, price_per_kg, total_price):
-    # 1. Canvas is now LANDSCAPE (Width: 800, Height: 600) for 40x30mm scale
-    W, H = 800, 600
+    # Canvas matching 40mm x 30mm aspect ratio (4:3) for crisp printing
+    W, H = 600, 450
     label = Image.new('RGB', (W, H), 'white')
     draw = ImageDraw.Draw(label)
     
-    # 2. Setup Fonts (Scaled up for 800x600 resolution)
+    # --- Robust Font Loading ---
+    # Fixes the "tiny text" issue by falling back to OS system fonts if local arial.ttf is missing
+    font_path = None
+    system_fonts = [
+        "arial.ttf",                                            # Local folder
+        "C:\\Windows\\Fonts\\arial.ttf",                        # Windows
+        "C:\\Windows\\Fonts\\Arial.ttf",                        # Windows alternate
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", # Linux
+        "/System/Library/Fonts/Supplemental/Arial.ttf",         # Mac
+        "/Library/Fonts/Arial.ttf"                              # Mac alternate
+    ]
+    
+    for path in system_fonts:
+        if os.path.exists(path):
+            font_path = path
+            break
+            
     try:
-        font_store = ImageFont.truetype("arial.ttf", 40)
-        font_item  = ImageFont.truetype("arial.ttf", 48)
-        font_label = ImageFont.truetype("arial.ttf", 24)
-        font_value = ImageFont.truetype("arial.ttf", 36)
-        font_total = ImageFont.truetype("arial.ttf", 72)
-    except IOError:
-        # Fallbacks if arial isn't found
-        font_store = font_item = font_label = font_value = font_total = ImageFont.load_default()
+        if font_path:
+            font_title = ImageFont.truetype(font_path, 36)
+            font_item  = ImageFont.truetype(font_path, 42)
+            font_label = ImageFont.truetype(font_path, 20)
+            font_value = ImageFont.truetype(font_path, 28)
+            font_total_label = ImageFont.truetype(font_path, 24)
+            font_total = ImageFont.truetype(font_path, 65)
+        else:
+            font_title = font_item = font_label = font_value = font_total_label = font_total = ImageFont.load_default()
+    except Exception:
+        font_title = font_item = font_label = font_value = font_total_label = font_total = ImageFont.load_default()
 
-    # --- TOP SECTION ---
-    # Store Name & Item Name
-    draw.text((20, 20), "FRESH MARKET", fill='black', font=font_store)
-    draw.text((20, 80), f"{item_name.upper()}", fill='black', font=font_item)
+    # Helper function to perfectly center text dynamically
+    def get_text_x(text, font):
+        try:
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            return (W - text_width) // 2
+        except Exception:
+            # Rough fallback if textbbox fails on very old PIL versions
+            return (W - (len(text) * 15)) // 2 
+
+    # --- TOP SECTION (Centered) ---
+    store_text = "FRESH MARKET"
+    draw.text((get_text_x(store_text, font_title), 10), store_text, fill='black', font=font_title)
+    
+    item_text = f"{item_name.upper()}"
+    draw.text((get_text_x(item_text, font_item), 50), item_text, fill='black', font=font_item)
     
     # --- DIVIDER ---
-    draw.line((20, 150, 780, 150), fill='black', width=4)
+    draw.line((20, 105, 580, 105), fill='black', width=3)
     
     # --- MIDDLE SECTION (Date, Price/KG, Weight) ---
     current_date = datetime.datetime.now().strftime("%d/%m/%y")
     
-    # Date
-    draw.text((20, 170), "DATE", fill='black', font=font_label)
-    draw.text((20, 200), current_date, fill='black', font=font_value)
+    # Date (Left)
+    draw.text((30, 115), "DATE", fill='black', font=font_label)
+    draw.text((30, 140), current_date, fill='black', font=font_value)
     
-    # Price / KG
-    draw.text((280, 170), "PRICE/KG", fill='black', font=font_label)
-    draw.text((280, 200), f"RM {price_per_kg:.2f}", fill='black', font=font_value)
+    # Price / KG (Center)
+    price_text = f"RM {price_per_kg:.2f}"
+    draw.text((250, 115), "PRICE/KG", fill='black', font=font_label)
+    draw.text((250, 140), price_text, fill='black', font=font_value)
     
-    # Weight
-    draw.text((560, 170), "WEIGHT", fill='black', font=font_label)
-    draw.text((560, 200), f"{weight:.3f} kg", fill='black', font=font_value)
+    # Weight (Right)
+    weight_text = f"{weight:.3f} kg"
+    draw.text((460, 115), "WEIGHT", fill='black', font=font_label)
+    draw.text((460, 140), weight_text, fill='black', font=font_value)
 
-    # --- BOTTOM SECTION (Barcode & Total Price) ---
-    # Barcode setup
+    # --- TOTAL PRICE (Highlighted and Centered) ---
+    draw.line((20, 185, 580, 185), fill='black', width=3)
+    total_lbl = "TOTAL:"
+    total_val = f"RM {total_price:.2f}"
+    draw.text((90, 215), total_lbl, fill='black', font=font_total_label)
+    draw.text((190, 190), total_val, fill='black', font=font_total)
+    
+    # --- BOTTOM SECTION (Barcode mathematically centered) ---
     code128 = barcode.get_barcode_class('code128')
     try:
         my_code = code128(str(plu), writer=ImageWriter())
         buffer = BytesIO()
-        # write_text=True to display the PLU number under the barcode
-        my_code.write(buffer, options={"write_text": True, "text_distance": 4})
+        my_code.write(buffer, options={"write_text": True, "text_distance": 4, "module_height": 8.0})
         buffer.seek(0)
         
-        # Stretch barcode to fit landscape layout (Bottom Left)
-        barcode_img = Image.open(buffer).resize((400, 220))
-        label.paste(barcode_img, (20, 320))
+        # Stretch barcode to be clearly scannable
+        barcode_width = 400
+        barcode_height = 130
+        barcode_img = Image.open(buffer).resize((barcode_width, barcode_height))
+        
+        # Calculate precise center X for the barcode
+        barcode_x = (W - barcode_width) // 2
+        label.paste(barcode_img, (barcode_x, 290))
     except Exception:
-        draw.text((20, 320), f"[BARCODE ERROR: {plu}]", fill='red', font=font_value)
+        err_msg = f"[BARCODE ERROR: {plu}]"
+        draw.text((get_text_x(err_msg, font_value), 320), err_msg, fill='red', font=font_value)
 
-    # Total Price (Bottom Right)
-    draw.text((520, 320), "TOTAL PRICE", fill='black', font=font_label)
-    draw.text((520, 360), "RM", fill='black', font=font_value)
-    draw.text((520, 410), f"{total_price:.2f}", fill='black', font=font_total)
-    
     return label
 
 def trigger_print_dialog(label_img):
@@ -154,7 +193,8 @@ def trigger_print_dialog(label_img):
     <style>
         @page {{
             margin: 0;
-            size: landscape;
+            /* Tells the browser to format the paper sideways */
+            size: landscape; 
         }}
         body {{
             margin: 0;
@@ -164,11 +204,13 @@ def trigger_print_dialog(label_img):
             justify-content: center;
             align-items: center;
             height: 100vh;
+            width: 100vw;
             overflow: hidden;
         }}
         img {{
-            width: 100vw; 
-            height: 100vh; 
+            /* Fills the label space securely without cutting off edges */
+            width: 100%; 
+            height: 100%; 
             object-fit: contain;
             display: block;
         }}
